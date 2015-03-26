@@ -22,7 +22,9 @@
         "canis/yii2-canis-lib": "*",
         "canis/yii2-composer": "*",
         "yiisoft/yii2-bootstrap": "2.0.*",
-        "yiisoft/yii2-swiftmailer": "2.0.*"
+        "yiisoft/yii2-swiftmailer": "2.0.*",
+        "tiesa/ldap": "dev-master",
+        "adldap/adldap": "*"
     },
     "require-dev": {
         "yiisoft/yii2-debug": "2.0.*",

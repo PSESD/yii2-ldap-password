@@ -3,7 +3,7 @@
  * @link http://www.psesd.org/
  *
  * @copyright Copyright (c) 2015 Puget Sound Educational Service District
- * @license https://github.com/PSESD/yii2-ldap-password/
+ * @license https://raw.githubusercontent.com/PSESD/yii2-ldap-password/master/LICENSE
  */
 
 namespace psesd\ldapPassword\setup\tasks;
@@ -13,7 +13,7 @@ use canis\composer\TwigRender;
 use yii\helpers\Inflector;
 use yii\helpers\FileHelper;
 
-class Environment extends BaseTask
+class Environment extends \canis\setup\tasks\BaseTask
 {
 		/**
      * @inheritdoc
@@ -31,10 +31,13 @@ class Environment extends BaseTask
         if ($this->setup->isEnvironmented) {
             try {
                 $oe = ini_set('display_errors', 0);
-                $dbh = new \PDO('mysql:host=' . CANIS_APP_DATABASE_HOST . ';port=' . CANIS_APP_DATABASE_PORT . ';dbname=' . CANIS_APP_DATABASE_DBNAME, CANIS_APP_DATABASE_USERNAME, CANIS_APP_DATABASE_PASSWORD);
+                $dbh = ldap_connect (CANIS_APP_LDAP_HOST, CANIS_APP_LDAP_PORT);
+                if (!$dbh) {
+                    throw new Exception("Unable to connect to ldap server! Please verify your settings in <code>env.php</code>.");
+                }
                 ini_set('display_errors', $oe);
             } catch (\Exception $e) {
-                throw new Exception("Unable to connect to db! Please verify your settings in <code>env.php</code>.");
+                throw new Exception("Unable to connect to ldap server! Please verify your settings in <code>env.php</code>.");
             }
         }
 
@@ -68,19 +71,9 @@ class Environment extends BaseTask
             $input['app']['name'] = $this->setup->app()->name;
             $input['app']['template'] = 'development';
 
-            $input['db'] = [];
-            $input['db']['host'] = CANIS_APP_DATABASE_HOST;
-            $input['db']['port'] = CANIS_APP_DATABASE_PORT;
-            $input['db']['username'] = CANIS_APP_DATABASE_USERNAME;
-            $input['db']['password'] = CANIS_APP_DATABASE_PASSWORD;
-            $input['db']['dbname'] = CANIS_APP_DATABASE_DBNAME;
-
-            if (defined('CANIS_APP_REDIS_HOST')) {
-                $input['redis'] = [];
-                $input['redis']['host'] = CANIS_APP_REDIS_HOST;
-                $input['redis']['port'] = CANIS_APP_REDIS_PORT;
-                $input['redis']['database'] = CANIS_APP_REDIS_DATABASE;
-            }
+            $input['ldap'] = [];
+            $input['ldap']['host'] = CANIS_APP_LDAP_HOST;
+            $input['ldap']['port'] = CANIS_APP_LDAP_PORT;
             $upgrade = true;
         }
 
@@ -154,14 +147,17 @@ class Environment extends BaseTask
         if (!parent::loadInput($input)) {
             return false;
         }
+        $fieldId = 'field_' . $this->id . '_ldap_host';
         try {
             $oe = ini_set('display_errors', 0);
-            $dbh = new \PDO('mysql:host=' . $this->input['db']['host'] . ';port=' . $this->input['db']['port'] . ';dbname=' . $this->input['db']['dbname'], $this->input['db']['username'], $this->input['db']['password']);
+            $dbh = ldap_connect($this->input['ldap']['host'], $this->input['ldap']['port']);
+            if (!$dbh) {
+                $this->fieldErrors[$fieldId] = 'Error connecting to ldap server: ' . $e->getMessage();
+                return false;
+            }
             ini_set('display_errors', $oe);
         } catch (\Exception $e) {
-            $fieldId = 'field_' . $this->id . '_db_host';
-            $this->fieldErrors[$fieldId] = 'Error connecting to db: ' . $e->getMessage();
-
+            $this->fieldErrors[$fieldId] = 'Error connecting to ldap server: ' . $e->getMessage();
             return false;
         }
 
@@ -215,21 +211,10 @@ class Environment extends BaseTask
         $fields['app']['fields']['template'] = ['type' => 'select', 'options' => $this->envListOptions, 'label' => 'Environment', 'required' => true, 'value' => function () { return defined('CANIS_APP_ENVIRONMENT') ? CANIS_APP_ENVIRONMENT : 'development'; }];
         $fields['app']['fields']['name'] = ['type' => 'text', 'label' => 'Application Name', 'required' => true, 'value' => function () { return $this->setup->name; }];
 
-        $fields['db'] = ['label' => 'Database', 'fields' => []];
-        $fields['db']['fields']['host'] = ['type' => 'text', 'label' => 'Host', 'required' => true, 'value' => function () { return defined('CANIS_APP_DATABASE_HOST') && CANIS_APP_DATABASE_HOST ? CANIS_APP_DATABASE_HOST : '127.0.0.1'; }];
-        $fields['db']['fields']['port'] = ['type' => 'text', 'label' => 'Port', 'required' => true, 'value' => function () { return defined('CANIS_APP_DATABASE_PORT') && CANIS_APP_DATABASE_PORT ? CANIS_APP_DATABASE_PORT : '3306'; }];
-        $fields['db']['fields']['username'] = ['type' => 'text', 'label' => 'Username', 'required' => true, 'value' => function () { return defined('CANIS_APP_DATABASE_USERNAME') && CANIS_APP_DATABASE_USERNAME ? CANIS_APP_DATABASE_USERNAME : ''; }];
-        $fields['db']['fields']['password'] = ['type' => 'text', 'label' => 'Password', 'required' => true, 'value' => function () { return defined('CANIS_APP_DATABASE_PASSWORD') && CANIS_APP_DATABASE_PASSWORD ? '' : ''; }];
-        $fields['db']['fields']['dbname'] = ['type' => 'text', 'label' => 'Database Name', 'required' => true, 'value' => function () { return defined('CANIS_APP_DATABASE_DBNAME') && CANIS_APP_DATABASE_DBNAME ? CANIS_APP_DATABASE_DBNAME : ''; }];
+        $fields['ldap'] = ['label' => 'LDAP Server', 'fields' => []];
+        $fields['ldap']['fields']['host'] = ['type' => 'text', 'label' => 'Host', 'required' => true, 'value' => function () { return defined('CANIS_APP_LDAP_HOST') && CANIS_APP_LDAP_HOST ? CANIS_APP_LDAP_HOST : 'ldap'; }];
+        $fields['ldap']['fields']['port'] = ['type' => 'text', 'label' => 'Port', 'required' => true, 'value' => function () { return defined('CANIS_APP_LDAP_PORT') && CANIS_APP_LDAP_PORT ? CANIS_APP_LDAP_PORT : '389'; }];
 
-        if (defined('CANIS_APP_REDIS_HOST')) {
-            $fields['redis'] = ['label' => 'Redis Cache', 'fields' => []];
-            $fields['redis']['fields']['host'] = ['type' => 'text', 'label' => 'Host', 'required' => true, 'value' => function () { return defined('CANIS_APP_DATABASE_HOST') && CANIS_APP_REDIS_HOST ? CANIS_APP_REDIS_HOST : '127.0.0.1'; }];
-            $fields['redis']['fields']['port'] = ['type' => 'text', 'label' => 'Port', 'required' => true, 'value' => function () { return defined('CANIS_APP_DATABASE_PORT') && CANIS_APP_REDIS_PORT ? CANIS_APP_REDIS_PORT : '6380'; }];
-            // $fields['redis']['fields']['username'] = ['type' => 'text', 'label' => 'Username', 'required' => true, 'value' => function () { return defined('CANIS_APP_DATABASE_USERNAME') && CANIS_APP_DATABASE_USERNAME ? CANIS_APP_DATABASE_USERNAME : ''; }];
-            // $fields['redis']['fields']['password'] = ['type' => 'text', 'label' => 'Password', 'required' => true, 'value' => function () { return defined('CANIS_APP_DATABASE_PASSWORD') && CANIS_APP_DATABASE_PASSWORD ? '' : ''; }];
-            // $fields['redis']['fields']['database'] = ['type' => 'text', 'label' => 'Database Name', 'required' => true, 'value' => function () { return defined('CANIS_APP_DATABASE_DBNAME') && CANIS_APP_DATABASE_DBNAME ? CANIS_APP_DATABASE_DBNAME : ''; }];
-        }
         return $fields;
     }
 }

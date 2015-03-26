@@ -64,9 +64,6 @@ if (!isset($base['components']['classes'])) {
         'class' => ClassManager::className(),
     ];
 }
-if (!isset($base['components']['db'])) {
-	$base['components']['db'] = include 'database.php';
-}
 if (!isset($base['components']['cache'])) {
 	if (isset($base['components']['redis'])) {
 		$base['components']['cache'] = [

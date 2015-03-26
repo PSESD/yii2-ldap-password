@@ -22,4 +22,7 @@ $config['components']['urlManager'] = [
 $config['components']['assetManager'] = [
     'linkAssets' => false,
 ];
+$config['components']['user'] = [
+    'identityClass' => \psesd\ldapPassword\models\LdapUser::className(),
+];
 return $config;
